@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simulasi Solvasi Ion oleh Air</title>
+    <style>
+        .simulation-container {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f0f0f0;
+        }
+        .header {
+            background: #000;
+            color: #fff;
+            width: 100%;
+            text-align: center;
+            padding: 10px 0;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em;
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+        .header p {
+            margin: 5px 0 0;
+            color: #ffeb3b;
+            font-size: 0.9em;
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+        canvas {
+            border: 5px solid #333;
+            width: 100%;
+            max-width: 414px;
+            height: auto;
+            aspect-ratio: 1 / 1;
+            box-sizing: border-box;
+            display: block;
+        }
+        .controls {
+            margin-top: 10px;
+            width: 100%;
+            max-width: 414px;
+            text-align: center;
+        }
+        .controls label {
+            font-size: 0.9em;
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+        .controls input[type="range"] {
+            width: 70%;
+            max-width: 300px;
+        }
+        .controls span {
+            font-size: 0.9em;
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+        @media (max-width: 414px) {
+            .header h1 {
+                font-size: 1.8em; /* Ukuran lebih besar agar proporsional */
+                line-height: 1.2;
+            }
+            .header p {
+                font-size: 1.1em; /* Ukuran lebih besar agar proporsional */
+                line-height: 1.2;
+            }
+            .controls label, .controls span {
+                font-size: 1em; /* Ukuran lebih besar agar proporsional */
+            }
+            canvas {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="simulation-container">
+        <div class="header">
+            <h1>Simulasi Solvasi Ion oleh Air</h1>
+            <p>Dirancang oleh urip.info</p>
+        </div>
+        <canvas id="simulationCanvas"></canvas>
+        <div class="controls">
+            <label for="speedSlider">Kecepatan Animasi: </label>
+            <input type="range" id="speedSlider" min="0" max="2" step="0.1" value="1">
+            <span id="speedValue">1x</span>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Atur ukuran canvas secara dinamis
+        function resizeCanvas() {
+            const maxWidth = Math.min(window.innerWidth, 414);
+            canvas.width = maxWidth - 10;
+            canvas.height = canvas.width;
+        }
+
+        // Panggil resize saat load dan saat window di-resize
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Skala untuk menyesuaikan ukuran elemen berdasarkan canvas
+        let scale = canvas.width / 600;
+
+        // Slider kecepatan
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        let speedScale = 1;
+
+        speedSlider.addEventListener('input', () => {
+            speedScale = parseFloat(speedSlider.value);
+            speedValue.textContent = `${speedScale}x`;
+        });
+
+        // Kelas untuk Ion (Na+ dan Cl-)
+        class Ion {
+            constructor(x, y, radius, color, label, charge, fontSize) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.label = label;
+                this.charge = charge;
+                this.fontSize = fontSize;
+                this.attachedWater = [];
+                this.vx = 0;
+                this.vy = 0;
+                this.vibrationOffset = { x: 0, y: 0 };
+                this.collisionEffect = 0;
+                this.rotationAngle = 0;
+                this.rotationSpeed = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.vibrationOffset.x, this.y + this.vibrationOffset.y);
+
+                const gradient = ctx.createRadialGradient(
+                    0, 0, this.radius * 0.2,
+                    0, 0, this.radius
+                );
+                if (this.label === 'Na⁺') {
+                    gradient.addColorStop(0, this.collisionEffect > 0 ? '#ff9999' : '#66b3ff');
+                    gradient.addColorStop(1, this.collisionEffect > 0 ? '#cc0000' : '#0033cc');
+                } else {
+                    gradient.addColorStop(0, this.collisionEffect > 0 ? '#ff9999' : '#66ff66');
+                    gradient.addColorStop(1, this.collisionEffect > 0 ? '#cc0000' : '#009900');
+                }
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius * scale, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.font = `bold ${this.fontSize * scale + 2}px 'Roboto Condensed', sans-serif`;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, 0, 0);
+
+                ctx.restore();
+            }
+
+            update(otherIon, freeWaters) {
+                // Sesuaikan batas canvas
+                const width = canvas.width;
+                const height = canvas.height;
+
+                // Gerak Brownian (dipercepat)
+                this.vx += (Math.random() - 0.5) * 0.075 * speedScale;
+                this.vy += (Math.random() - 0.5) * 0.075 * speedScale;
+                const maxSpeed = 0.75;
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.vibrationOffset.x = (Math.random() - 0.5) * 2 * speedScale;
+                this.vibrationOffset.y = (Math.random() - 0.5) * 2 * speedScale;
+
+                // Update posisi ion
+                this.x += this.vx * speedScale;
+                this.y += this.vy * speedScale;
+
+                // Update rotasi grup ion dan molekul air terikat
+                this.rotationAngle += this.rotationSpeed * speedScale;
+                this.rotationSpeed *= 0.98;
+
+                // Update molekul air terikat dengan rotasi
+                this.attachedWater.forEach(water => {
+                    water.attachedAngle += this.rotationSpeed * speedScale;
+                    water.update();
+                });
+
+                // Hitung batas grup solvasi
+                const snapDistance = (this.label === 'Na⁺' ? 60 : 70) * scale;
+                const outerRadius = (this.label === 'Na⁺' ? 86 : 90) * scale;
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+                this.attachedWater.forEach(water => {
+                    const angle = water.attachedAngle;
+                    let outerX, outerY;
+
+                    if (this.label === 'Na⁺') {
+                        const oX = this.x + Math.cos(angle) * snapDistance;
+                        const oY = this.y + Math.sin(angle) * snapDistance;
+                        const hAngle = water.angle;
+                        const h1X = oX + Math.cos(hAngle) * (-17 * scale) + Math.sin(hAngle) * (14 * scale);
+                        const h1Y = oY + Math.sin(hAngle) * (-17 * scale) - Math.cos(hAngle) * (14 * scale);
+                        const h2X = oX + Math.cos(hAngle) * (17 * scale) + Math.sin(hAngle) * (14 * scale);
+                        const h2Y = oY + Math.sin(hAngle) * (17 * scale) - Math.cos(hAngle) * (14 * scale);
+                        outerX = Math.abs(h1X - this.x) > Math.abs(h2X - this.x) ? h1X : h2X;
+                        outerY = Math.abs(h1Y - this.y) > Math.abs(h2Y - this.y) ? h1Y : h2Y;
+                    } else {
+                        outerX = this.x + Math.cos(angle) * snapDistance;
+                        outerY = this.y + Math.sin(angle) * snapDistance;
+                    }
+
+                    // Margin lebih ketat untuk Na⁺
+                    const margin = (this.label === 'Na⁺' ? 17 : 20) * scale;
+                    minX = Math.min(minX, outerX - margin);
+                    maxX = Math.max(maxX, outerX + margin);
+                    minY = Math.min(minY, outerY - margin);
+                    maxY = Math.max(maxY, outerY + margin);
+                });
+
+                // Tabrakan dengan dinding
+                let wallCollision = false;
+                if (minX < 0) {
+                    this.vx = Math.abs(this.vx);
+                    this.x = Math.max(this.x, -minX + (this.label === 'Na⁺' ? 17 : 20) * scale);
+                    wallCollision = true;
+                } else if (maxX > width) {
+                    this.vx = -Math.abs(this.vx);
+                    this.x = Math.min(this.x, width - (maxX - width) - (this.label === 'Na⁺' ? 17 : 20) * scale);
+                    wallCollision = true;
+                }
+                if (minY < 0) {
+                    this.vy = Math.abs(this.vy);
+                    this.y = Math.max(this.y, -minY + (this.label === 'Na⁺' ? 17 : 20) * scale);
+                    wallCollision = true;
+                } else if (maxY > height) {
+                    this.vy = -Math.abs(this.vy);
+                    this.y = Math.min(this.y, height - (maxY - height) - (this.label === 'Na⁺' ? 17 : 20) * scale);
+                    wallCollision = true;
+                }
+                if (wallCollision) {
+                    this.collisionEffect = 10;
+                }
+
+                // Tabrakan dengan ion lain
+                const dx = this.x - otherIon.x;
+                const dy = this.y - otherIon.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const minDistance = 150 * scale;
+                if (distance < minDistance && distance > 0) {
+                    const angle = Math.atan2(dy, dx);
+                    const tempVx = this.vx;
+                    const tempVy = this.vy;
+                    this.vx = otherIon.vx;
+                    this.vy = otherIon.vy;
+                    otherIon.vx = tempVx;
+                    otherIon.vy = tempVy;
+                    this.collisionEffect = 10;
+                    otherIon.collisionEffect = 10;
+                    const overlap = (minDistance - distance) / 2;
+                    this.x += Math.cos(angle) * overlap;
+                    this.y += Math.sin(angle) * overlap;
+                    otherIon.x -= Math.cos(angle) * overlap;
+                    otherIon.y -= Math.sin(angle) * overlap;
+                    this.rotationSpeed += (Math.random() - 0.5) * 0.05;
+                    otherIon.rotationSpeed += (Math.random() - 0.5) * 0.05;
+                }
+
+                // Tabrakan dengan molekul air bebas
+                freeWaters.forEach(water => {
+                    const dx = this.x - water.x;
+                    const dy = this.y - water.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const collisionDistance = outerRadius + (32 * scale);
+                    if (distance < collisionDistance && distance > 0) {
+                        const angle = Math.atan2(dy, dx);
+                        const tempVx = this.vx;
+                        const tempVy = this.vy;
+                        this.vx = water.vx;
+                        this.vy = water.vy;
+                        water.vx = tempVx;
+                        water.vy = tempVy;
+                        this.collisionEffect = 10;
+                        water.collisionEffect = 10;
+                        const overlap = (collisionDistance - distance) / 2;
+                        this.x += Math.cos(angle) * overlap;
+                        this.y += Math.sin(angle) * overlap;
+                        water.x -= Math.cos(angle) * overlap;
+                        water.y -= Math.sin(angle) * overlap;
+                        this.rotationSpeed += (Math.random() - 0.5) * 0.05;
+                    }
+                });
+
+                if (this.collisionEffect > 0) {
+                    this.collisionEffect--;
+                }
+            }
+        }
+
+        // Kelas untuk Molekul H2O Terikat
+        class WaterMolecule {
+            constructor(x, y, attachedTo, attachedAngle) {
+                this.x = x;
+                this.y = y;
+                this.attachedTo = attachedTo;
+                this.attachedAngle = attachedAngle;
+                this.angle = 0;
+                this.vibrationOffset = { x: 0, y: 0 };
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.vibrationOffset.x, this.y + this.vibrationOffset.y);
+                ctx.rotate(this.angle);
+
+                const oGradient = ctx.createRadialGradient(
+                    0, 0, (20 * scale) * 0.2,
+                    0, 0, 20 * scale
+                );
+                oGradient.addColorStop(0, this.attachedTo.collisionEffect > 0 ? '#ff9999' : '#ff6666');
+                oGradient.addColorStop(1, this.attachedTo.collisionEffect > 0 ? '#cc0000' : '#cc0000');
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 20 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = oGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                const hGradient = ctx.createRadialGradient(
+                    -17 * scale, 14 * scale, (12 * scale) * 0.2,
+                    -17 * scale, 14 * scale, 12 * scale
+                );
+                hGradient.addColorStop(0, '#f0f0f0');
+                hGradient.addColorStop(1, '#b0b0b0');
+
+                ctx.beginPath();
+                ctx.arc(-17 * scale, 14 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = hGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.beginPath();
+                ctx.arc(17 * scale, 14 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = hGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.font = `${10 * scale}px 'Roboto Condensed', sans-serif`;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('O', 0, 0);
+                ctx.fillText('H', -17 * scale, 14 * scale);
+                ctx.fillText('H', 17 * scale, 14 * scale);
+
+                ctx.restore();
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(this.x + this.vibrationOffset.x, this.y + this.vibrationOffset.y);
+                ctx.lineTo(this.attachedTo.x + this.vibrationOffset.x, this.attachedTo.y + this.vibrationOffset.y);
+                ctx.strokeStyle = this.attachedTo.label === 'Na⁺' ? 'blue' : 'green';
+                ctx.lineWidth = 2 * scale;
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.closePath();
+                ctx.restore();
+            }
+
+            update() {
+                const ion = this.attachedTo;
+                const snapDistance = (ion.label === 'Na⁺' ? 60 : 70) * scale;
+
+                // Paksa nempel dengan sudut yang sudah termasuk rotasi
+                this.x = ion.x + Math.cos(this.attachedAngle) * snapDistance;
+                this.y = ion.y + Math.sin(this.attachedAngle) * snapDistance;
+
+                this.vibrationOffset.x = (Math.random() - 0.5) * 2 * speedScale;
+                this.vibrationOffset.y = (Math.random() - 0.5) * 2 * speedScale;
+
+                const angleToIon = Math.atan2(ion.y - this.y, ion.x - this.x);
+                this.angle = ion.charge > 0 ? angleToIon + Math.PI / 2 : angleToIon + Math.PI + Math.PI / 2;
+            }
+        }
+
+        // Kelas untuk Molekul H2O Bebas
+        class FreeWaterMolecule {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.angle = Math.random() * Math.PI * 2;
+                this.vibrationOffset = { x: 0, y: 0 };
+                this.collisionEffect = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.vibrationOffset.x, this.y + this.vibrationOffset.y);
+                ctx.rotate(this.angle);
+
+                const oGradient = ctx.createRadialGradient(
+                    0, 0, (20 * scale) * 0.2,
+                    0, 0, 20 * scale
+                );
+                oGradient.addColorStop(0, this.collisionEffect > 0 ? '#ff9999' : '#ff6666');
+                oGradient.addColorStop(1, this.collisionEffect > 0 ? '#cc0000' : '#cc0000');
+
+                ctx.beginPath();
+                ctx.arc(0, 0, 20 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = oGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                const hGradient = ctx.createRadialGradient(
+                    -17 * scale, 14 * scale, (12 * scale) * 0.2,
+                    -17 * scale, 14 * scale, 12 * scale
+                );
+                hGradient.addColorStop(0, '#f0f0f0');
+                hGradient.addColorStop(1, '#b0b0b0');
+
+                ctx.beginPath();
+                ctx.arc(-17 * scale, 14 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = hGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.beginPath();
+                ctx.arc(17 * scale, 14 * scale, 12 * scale, 0, Math.PI * 2);
+                ctx.fillStyle = hGradient;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.font = `${10 * scale}px 'Roboto Condensed', sans-serif`;
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('O', 0, 0);
+                ctx.fillText('H', -17 * scale, 14 * scale);
+                ctx.fillText('H', 17 * scale, 14 * scale);
+
+                ctx.restore();
+            }
+
+            update(ions, otherWaters) {
+                // Sesuaikan batas canvas
+                const width = canvas.width;
+                const height = canvas.height;
+
+                // Gerak Brownian
+                this.vx += (Math.random() - 0.5) * 0.05 * speedScale;
+                this.vy += (Math.random() - 0.5) * 0.05 * speedScale;
+                const maxSpeed = 0.5;
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.x += this.vx * speedScale;
+                this.y += this.vy * speedScale;
+
+                this.vibrationOffset.x = (Math.random() - 0.5) * 2 * speedScale;
+                this.vibrationOffset.y = (Math.random() - 0.5) * 2 * speedScale;
+
+                this.angle = Math.atan2(this.vy, this.vx);
+
+                // Hitung batas molekul air
+                const oX = this.x;
+                const oY = this.y;
+                const hAngle = this.angle;
+                const h1X = oX + Math.cos(hAngle) * (-17 * scale) + Math.sin(hAngle) * (14 * scale);
+                const h1Y = oY + Math.sin(hAngle) * (-17 * scale) - Math.cos(hAngle) * (14 * scale);
+                const h2X = oX + Math.cos(hAngle) * (17 * scale) + Math.sin(hAngle) * (14 * scale);
+                const h2Y = oY + Math.sin(hAngle) * (17 * scale) - Math.cos(hAngle) * (14 * scale);
+
+                const minX = Math.min(oX - (20 * scale), h1X - (12 * scale), h2X - (12 * scale));
+                const maxX = Math.max(oX + (20 * scale), h1X + (12 * scale), h2X + (12 * scale));
+                const minY = Math.min(oY - (20 * scale), h1Y - (12 * scale), h2Y - (12 * scale));
+                const maxY = Math.max(oY + (20 * scale), h1Y + (12 * scale), h2Y + (12 * scale));
+
+                // Tabrakan dengan dinding
+                let wallCollision = false;
+                if (minX < 0) {
+                    this.vx = Math.abs(this.vx);
+                    this.x = Math.max(this.x, -minX + (20 * scale));
+                    wallCollision = true;
+                } else if (maxX > width) {
+                    this.vx = -Math.abs(this.vx);
+                    this.x = Math.min(this.x, width - (maxX - width) - (20 * scale));
+                    wallCollision = true;
+                }
+                if (minY < 0) {
+                    this.vy = Math.abs(this.vy);
+                    this.y = Math.max(this.y, -minY + (20 * scale));
+                    wallCollision = true;
+                } else if (maxY > height) {
+                    this.vy = -Math.abs(this.vy);
+                    this.y = Math.min(this.y, height - (maxY - height) - (20 * scale));
+                    wallCollision = true;
+                }
+                if (wallCollision) {
+                    this.collisionEffect = 10;
+                }
+
+                // Tabrakan dengan molekul air lain
+                otherWaters.forEach(other => {
+                    if (other !== this) {
+                        const dx = this.x - other.x;
+                        const dy = this.y - other.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const collisionDistance = 32 * scale;
+                        if (distance < collisionDistance && distance > 0) {
+                            const angle = Math.atan2(dy, dx);
+                            const tempVx = this.vx;
+                            const tempVy = this.vy;
+                            this.vx = other.vx;
+                            this.vy = other.vy;
+                            other.vx = tempVx;
+                            other.vy = tempVy;
+                            this.collisionEffect = 10;
+                            other.collisionEffect = 10;
+                            const overlap = (collisionDistance - distance) / 2;
+                            this.x += Math.cos(angle) * overlap;
+                            this.y += Math.sin(angle) * overlap;
+                            other.x -= Math.cos(angle) * overlap;
+                            other.y -= Math.sin(angle) * overlap;
+                        }
+                    }
+                });
+            }
+        }
+
+        // Inisialisasi partikel
+        const ions = [
+            new Ion(280 * scale, (canvas.height / 2), 24, 'blue', 'Na⁺', 1, 14),
+            new Ion(320 * scale, (canvas.height / 2), 35, 'green', 'Cl⁻', -1, 20)
+        ];
+
+        const waterMolecules = [];
+        const angleStep = Math.PI * 2 / 6;
+
+        // Grup solvasi Na⁺
+        for (let i = 0; i < 6; i++) {
+            const angle = i * angleStep;
+            const snapDistance = 60 * scale;
+            const x = ions[0].x + Math.cos(angle) * snapDistance;
+            const y = ions[0].y + Math.sin(angle) * snapDistance;
+            const water = new WaterMolecule(x, y, ions[0], angle);
+            water.update();
+            waterMolecules.push(water);
+            ions[0].attachedWater.push(water);
+        }
+
+        // Grup solvasi Cl⁻
+        for (let i = 0; i < 6; i++) {
+            const angle = i * angleStep;
+            const snapDistance = 70 * scale;
+            const x = ions[1].x + Math.cos(angle) * snapDistance;
+            const y = ions[1].y + Math.sin(angle) * snapDistance;
+            const water = new WaterMolecule(x, y, ions[1], angle);
+            water.update();
+            waterMolecules.push(water);
+            ions[1].attachedWater.push(water);
+        }
+
+        // 30 molekul air bebas
+        const freeWaterMolecules = [];
+        for (let i = 0; i < 30; i++) {
+            let x, y, valid = false;
+            const width = canvas.width;
+            const height = canvas.height;
+            while (!valid) {
+                x = Math.random() * width;
+                y = Math.random() * height;
+                valid = true;
+                for (let ion of ions) {
+                    const dx = x - ion.x;
+                    const dy = y - ion.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < ((ion.label === 'Na⁺' ? 86 : 90) + 32) * scale) {
+                        valid = false;
+                        break;
+                    }
+                }
+                for (let water of freeWaterMolecules) {
+                    const dx = x - water.x;
+                    const dy = y - water.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < (64 * scale)) {
+                        valid = false;
+                        break;
+                    }
+                }
+            }
+            freeWaterMolecules.push(new FreeWaterMolecule(x, y));
+        }
+
+        // Fungsi animasi
+        function animate() {
+            ctx.fillStyle = '#E0FFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update skala jika canvas berubah ukuran
+            scale = canvas.width / 600;
+
+            // Update ion
+            ions[0].update(ions[1], freeWaterMolecules);
+            ions[1].update(ions[0], freeWaterMolecules);
+
+            // Gambar ion
+            ions.forEach(ion => ion.draw());
+
+            // Gambar molekul air terikat
+            waterMolecules.forEach(water => water.draw());
+
+            // Update dan gambar molekul air bebas
+            freeWaterMolecules.forEach(water => {
+                water.update(ions, freeWaterMolecules);
+                water.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Tunggu DOM siap
+        setTimeout(() => {
+            animate();
+        }, 100);
+    </script>
+</body>
+</html>
