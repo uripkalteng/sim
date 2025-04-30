@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Pelarutan dan Ionisasi Asam-Basa</title>
+    <style>
+        .wrapper_ab {
+            font-family: 'Roboto Condensed', Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            text-align: center; color:white; line-height:1.2em;padding: 10px; background-color:black;
+        }
+        .tabs_ab {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        .tab-button_ab {
+            padding: 8px 16px;
+            background-color: #ddd;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .tab-button_ab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .simulation-area_ab {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .container_ab {
+            width: 300px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            background-color: #e6f7ff;
+            position: relative;
+            overflow: hidden;
+        }
+        .container_ab h3 {
+            text-align: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        canvas {
+            display: block;
+            width: 300px;
+            height: 250px;
+        }
+        .start-button_ab {
+            margin-top: 10px;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .start-button_ab:hover {
+            background-color: #45a049;
+        }
+        .speed-control_ab {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .speed-control_ab label {
+            font-size: 14px;
+        }
+        .speed-control_ab input {
+            width: 150px;
+        }
+        .legend_ab {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+        .legend-item_ab {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 10px;
+        }
+        .legend-canvas_ab {
+            width: 30px;
+            height: 30px;
+        }
+        .legend-count_ab {
+            margin-top: 2px;
+            font-size: 10px;
+            text-align: center;
+        }
+        @media (max-width: 414px) {
+            .simulation-area_ab {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .container_ab {
+                width: 100%;
+                max-width: 300px;
+                margin: 0 auto;
+            }
+            canvas {
+                width: 100%;
+                max-width: 300px;
+                height: 250px;
+            }
+            .legend_ab {
+                gap: 8px;
+            }
+            .wrapper_ab {
+                padding: 5px;
+            }
+            h1 {
+                font-size: 18px;
+            }
+            .tab-button_ab {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .start-button_ab {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            .speed-control_ab label {
+                font-size: 12px;
+            }
+            .speed-control_ab input {
+                width: 120px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper_ab">
+        <h1>Simulasi Pelarutan & Ionisasi Asam-Basa<br /><span style="color: yellow; font-size: small;">Dirancang oleh urip.info</span></h1>
+        <div class="tabs_ab">
+            <button class="tab-button_ab active" onclick="switchTab('acid')">Asam</button>
+            <button class="tab-button_ab" onclick="switchTab('base')">Basa</button>
+        </div>
+        <div class="simulation-area_ab" id="simulation-area_ab">
+            <div class="container_ab">
+                <h3 id="compound-left_ab"></h3>
+                <canvas id="canvas-left_ab" width="300" height="250"></canvas>
+                <div class="legend_ab" id="legend-left_ab"></div>
+            </div>
+            <div class="container_ab">
+                <h3 id="compound-right_ab"></h3>
+                <canvas id="canvas-right_ab" width="300" height="250"></canvas>
+                <div class="legend_ab" id="legend-right_ab"></div>
+            </div>
+        </div>
+        <button class="start-button_ab" onclick="startSimulation()">Mulai Simulasi</button>
+        <div class="speed-control_ab">
+            <label for="speed-slider_ab">Kecepatan Animasi: <span id="speed-value_ab">0.5</span>x</label>
+            <input type="range" id="speed-slider_ab" min="0" max="1" step="0.02" value="0.5" oninput="updateSpeed(this.value)">
+        </div>
+    </div>
+
+    <script>
+        const canvasLeft = document.getElementById('canvas-left_ab');
+        const ctxLeft = canvasLeft ? canvasLeft.getContext('2d', { alpha: false }) : null;
+        const canvasRight = document.getElementById('canvas-right_ab');
+        const ctxRight = canvasRight ? canvasRight.getContext('2d', { alpha: false }) : null;
+        const width = 300;
+        const height = 250;
+        const bottomOffset = 20;
+
+        let speedFactor = 0.5;
+
+        function updateSpeed(value) {
+            speedFactor = parseFloat(value);
+            document.getElementById('speed-value_ab').textContent = speedFactor.toFixed(2);
+        }
+
+        const compounds = {
+            HCl: { type: 'acid', strength: 'strong', color: '#808080', ions: [{ label: 'H⁺', color: '#ff0000' }, { label: 'Cl⁻', color: '#00ff00' }], ionizationRate: 1.0 },
+            HF: { type: 'acid', strength: 'weak', color: '#ffff00', ions: [{ label: 'H⁺', color: '#ff0000' }, { label: 'F⁻', color: '#0000ff' }], ionizationRate: 0.3, ionizedCount: 0, maxIonized: 3 },
+            NaOH: { type: 'base', strength: 'strong', color: '#ffa500', ions: [{ label: 'Na⁺', color: '#800080' }, { label: 'OH⁻', color: '#00ffff' }], ionizationRate: 1.0 },
+            NH3: { type: 'base', strength: 'weak', color: '#ff69b4', ions: [{ label: 'NH₄⁺', color: '#8b4513' }, { label: 'OH⁻', color: '#00ffff' }], ionizationRate: 0.3, ionizedCount: 0, maxIonized: 3 }
+        };
+
+        let currentTab = 'acid';
+        let simulationRunning = false;
+        let leftSim = { compound: 'HCl', molecules: [], waterMolecules: [] };
+        let rightSim = { compound: 'HF', molecules: [], waterMolecules: [] };
+
+        function getRandomPosition(radius) {
+            const x = Math.random() * (width - 2 * radius) + radius;
+            const y = 20 + Math.random() * (height - bottomOffset - 2 * radius - 20);
+            return { x, y };
+        }
+
+        class WaterMolecule {
+            constructor(x, y, isHydronium = false) {
+                this.x = x;
+                this.y = y;
+                this.radiusO = 8;
+                this.radiusH = 4;
+                this.colorO = '#ff0000';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = (Math.random() * 2 - 1) * 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                this.isHydronium = isHydronium;
+                this.angle = 105 * Math.PI / 180;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update() {
+                let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                let nextX = this.x + this.dx * speedFactor;
+                let nextY = this.y + this.dy * speedFactor;
+
+                if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                    this.dx = (Math.random() * 2 - 1) * 2;
+                    this.dy = (Math.random() * 2 - 1) * 2;
+                    this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                    this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                    nextX = this.x;
+                    nextY = this.y;
+                }
+
+                nextX = Math.max(this.radiusO, Math.min(width - this.radiusO, nextX));
+                nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+
+                if (nextX === this.radiusO || nextX === width - this.radiusO) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextX = Math.max(this.radiusO, Math.min(width - this.radiusO, nextX));
+                }
+                if (nextY === this.radiusO || nextY === height - this.radiusO - bottomOffset) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                if (this.isHydronium) {
+                    const angleStep = (2 * Math.PI) / 3;
+                    for (let i = 0; i < 3; i++) {
+                        const angle = i * angleStep;
+                        const hx = (this.radiusO + this.radiusH) * Math.cos(angle);
+                        const hy = (this.radiusO + this.radiusH) * Math.sin(angle);
+                        ctx.beginPath();
+                        ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                        ctx.fillStyle = this.colorH;
+                        ctx.fill();
+                        ctx.closePath();
+                    }
+                    ctx.fillStyle = '#000';
+                    ctx.font = '8px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('+', 0, 0);
+                } else {
+                    const h1x = (this.radiusO + this.radiusH) * Math.cos(this.angle / 2);
+                    const h1y = (this.radiusO + this.radiusH) * Math.sin(this.angle / 2);
+                    const h2x = (this.radiusO + this.radiusH) * Math.cos(-this.angle / 2);
+                    const h2y = (this.radiusO + this.radiusH) * Math.sin(-this.angle / 2);
+
+                    ctx.beginPath();
+                    ctx.arc(h1x, h1y, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+
+                    ctx.beginPath();
+                    ctx.arc(h2x, h2y, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.isHydronium ? 'H₃O⁺' : 'H₂O', 0, 0);
+
+                ctx.restore();
+            }
+        }
+
+        class HydroxideIon {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radiusO = 8;
+                this.radiusH = 4;
+                this.colorO = '#ff0000';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = Math.max(0.5, Math.random() * 2);
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update() {
+                let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                let nextX = this.x + this.dx * speedFactor;
+                let nextY = this.y + this.dy * speedFactor;
+
+                if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                    this.dx = (Math.random() * 2 - 1) * 2;
+                    this.dy = Math.max(0.5, Math.random() * 2);
+                    this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                    nextX = this.x;
+                    nextY = this.y;
+                }
+
+                nextX = Math.max(this.radiusO, Math.min(width - this.radiusO, nextX));
+                nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+
+                if (nextX === this.radiusO || nextX === width - this.radiusO) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextX = Math.max(this.radiusO, Math.min(width - this.radiusO, nextX));
+                }
+                if (nextY === this.radiusO || nextY === height - this.radiusO - bottomOffset) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = (this.radiusO + this.radiusH) * Math.cos(0);
+                const hy = (this.radiusO + this.radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('OH⁻', 0, 0);
+
+                ctx.restore();
+            }
+        }
+
+        class AmmoniumIon {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radiusN = 8;
+                this.radiusH = 4;
+                this.colorN = '#8b4513';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = Math.max(0.5, Math.random() * 2);
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update() {
+                let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                let nextX = this.x + this.dx * speedFactor;
+                let nextY = this.y + this.dy * speedFactor;
+
+                if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                    this.dx = (Math.random() * 2 - 1) * 2;
+                    this.dy = Math.max(0.5, Math.random() * 2);
+                    this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                    nextX = this.x;
+                    nextY = this.y;
+                }
+
+                nextX = Math.max(this.radiusN, Math.min(width - this.radiusN, nextX));
+                nextY = Math.max(this.radiusN, Math.min(height - this.radiusN - bottomOffset, nextY));
+
+                if (nextX === this.radiusN || nextX === width - this.radiusN) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextX = Math.max(this.radiusN, Math.min(width - this.radiusN, nextX));
+                }
+                if (nextY === this.radiusN || nextY === height - this.radiusN - bottomOffset) {
+                    const angle = Math.random() * 2 * Math.PI;
+                    this.dx = speed * Math.cos(angle);
+                    this.dy = speed * Math.sin(angle);
+                    this.rotationAngle = Math.random() * 2 * Math.PI;
+                    nextY = Math.max(this.radiusN, Math.min(height - this.radiusN - bottomOffset, nextY));
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radiusN, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorN;
+                ctx.fill();
+                ctx.closePath();
+
+                const angleStep = (2 * Math.PI) / 4;
+                for (let i = 0; i < 4; i++) {
+                    const angle = i * angleStep + Math.PI / 4;
+                    const hx = (this.radiusN + this.radiusH) * Math.cos(angle);
+                    const hy = (this.radiusN + this.radiusH) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#000';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', 0, 0);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.fillText('NH₄⁺', 0, 14);
+
+                ctx.restore();
+            }
+        }
+
+        class AmmoniaMolecule {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radiusN = 8;
+                this.radiusH = 4;
+                this.colorN = '#8b4513';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.dissolving = false;
+                this.ionizationTimer = 0;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update(compound, sim) {
+                if (!this.dissolving) {
+                    const nextY = this.y + this.dy;
+                    const bottomLimit = height - this.radiusN - bottomOffset;
+                    if (nextY <= bottomLimit) {
+                        this.y = nextY;
+                        this.dy += 0.1;
+                    } else {
+                        this.y = bottomLimit;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        this.dissolving = true;
+                    }
+                }
+
+                if (this.dissolving) {
+                    let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                    let nextX = this.x + this.dx * speedFactor;
+                    let nextY = this.y + this.dy * speedFactor;
+
+                    if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                        this.dx = (Math.random() * 2 - 1) * 2;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+
+                    nextX = Math.max(this.radiusN, Math.min(width - this.radiusN, nextX));
+                    nextY = Math.max(this.radiusN, Math.min(height - this.radiusN - bottomOffset, nextY));
+
+                    if (nextX === this.radiusN || nextX === width - this.radiusN) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextX = Math.max(this.radiusN, Math.min(width - this.radiusN, nextX));
+                    }
+                    if (nextY === this.radiusN || nextY === height - this.radiusN - bottomOffset) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextY = Math.max(this.radiusN, Math.min(height - this.radiusN - bottomOffset, nextY));
+                    }
+
+                    this.x = nextX;
+                    this.y = nextY;
+
+                    this.ionizationTimer += 1 / 60;
+                    if (this.ionizationTimer >= 2 && compound.ionizedCount < compound.maxIonized) {
+                        compound.ionizedCount++;
+                        const pos1 = getRandomPosition(this.radiusN);
+                        const pos2 = getRandomPosition(this.radiusN);
+                        return { ionize: true, newMolecules: [
+                            new AmmoniumIon(pos1.x, pos1.y),
+                            new HydroxideIon(pos2.x, pos2.y)
+                        ]};
+                    }
+                }
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radiusN, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorN;
+                ctx.fill();
+                ctx.closePath();
+
+                const angleStep = (2 * Math.PI) / 3;
+                for (let i = 0; i < 3; i++) {
+                    const angle = i * angleStep;
+                    const hx = (this.radiusN + this.radiusH) * Math.cos(angle);
+                    const hy = (this.radiusN + this.radiusH) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('NH₃', 0, 0);
+
+                ctx.restore();
+            }
+        }
+
+        class HFMolecule {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radiusF = 8;
+                this.radiusH = 4;
+                this.colorF = '#0000ff';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.dissolving = false;
+                this.ionizationTimer = 0;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update(compound, sim) {
+                if (!this.dissolving) {
+                    const nextY = this.y + this.dy;
+                    const bottomLimit = height - this.radiusF - bottomOffset;
+                    if (nextY <= bottomLimit) {
+                        this.y = nextY;
+                        this.dy += 0.1;
+                    } else {
+                        this.y = bottomLimit;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        this.dissolving = true;
+                    }
+                }
+
+                if (this.dissolving) {
+                    let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                    let nextX = this.x + this.dx * speedFactor;
+                    let nextY = this.y + this.dy * speedFactor;
+
+                    if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                        this.dx = (Math.random() * 2 - 1) * 2;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+
+                    nextX = Math.max(this.radiusF, Math.min(width - this.radiusF, nextX));
+                    nextY = Math.max(this.radiusF, Math.min(height - this.radiusF - bottomOffset, nextY));
+
+                    if (nextX === this.radiusF || nextX === width - this.radiusF) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextX = Math.max(this.radiusF, Math.min(width - this.radiusF, nextX));
+                    }
+                    if (nextY === this.radiusF || nextY === height - this.radiusF - bottomOffset) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextY = Math.max(this.radiusF, Math.min(height - this.radiusF - bottomOffset, nextY));
+                    }
+
+                    this.x = nextX;
+                    this.y = nextY;
+
+                    this.ionizationTimer += 1 / 60;
+                    if (this.ionizationTimer >= 2 && compound.ionizedCount < compound.maxIonized) {
+                        compound.ionizedCount++;
+                        let nearestWater = null;
+                        let minDist = Infinity;
+                        for (let water of sim.waterMolecules) {
+                            if (!water.isHydronium) {
+                                const dist = Math.sqrt((this.x - water.x) ** 2 + (this.y - water.y) ** 2);
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    nearestWater = water;
+                                }
+                            }
+                        }
+                        if (nearestWater) {
+                            nearestWater.isHydronium = true;
+                            const pos = getRandomPosition(this.radiusF);
+                            return { ionize: true, newMolecules: [new Molecule(compound.ions[1].label, compound.ions[1].color, pos.x, pos.y, true)] };
+                        }
+                    }
+                }
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radiusF, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorF;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = (this.radiusF + this.radiusH) * Math.cos(0);
+                const hy = (this.radiusF + this.radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('HF', 0, 0);
+
+                ctx.restore();
+            }
+        }
+
+        class Molecule {
+            constructor(label, color, x, y, isIon = false) {
+                this.label = label;
+                this.color = color;
+                this.x = x;
+                this.y = y;
+                this.radius = isIon ? 7 : 10;
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = isIon ? Math.max(0.5, Math.random() * 2) : 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.isIon = isIon;
+                this.ionizationTimer = 0;
+                this.dissolving = false;
+                this.rotationAngle = Math.random() * 2 * Math.PI;
+            }
+
+            update(compound, sim) {
+                if (!this.dissolving) {
+                    const nextY = this.y + this.dy;
+                    const bottomLimit = height - this.radius - bottomOffset;
+                    if (nextY <= bottomLimit) {
+                        this.y = nextY;
+                        if (!this.isIon) this.dy += 0.1;
+                    } else {
+                        this.y = bottomLimit;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        this.dissolving = true;
+                    }
+                }
+
+                if (this.dissolving) {
+                    let speed = Math.sqrt(this.dx * this.dx + this.dy * this.dy);
+                    let nextX = this.x + this.dx * speedFactor;
+                    let nextY = this.y + this.dy * speedFactor;
+
+                    if (isNaN(nextX) || isNaN(nextY) || isNaN(this.dx) || isNaN(this.dy)) {
+                        this.dx = (Math.random() * 2 - 1) * 2;
+                        this.dy = this.isIon ? Math.max(0.5, Math.random() * 2) : (Math.random() * 2 - 1) * 2;
+                        this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+
+                    nextX = Math.max(this.radius, Math.min(width - this.radius, nextX));
+                    nextY = Math.max(this.radius, Math.min(height - this.radius - bottomOffset, nextY));
+
+                    if (nextX === this.radius || nextX === width - this.radius) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextX = Math.max(this.radius, Math.min(width - this.radius, nextX));
+                    }
+                    if (nextY === this.radius || nextY === height - this.radius - bottomOffset) {
+                        const angle = Math.random() * 2 * Math.PI;
+                        this.dx = speed * Math.cos(angle);
+                        this.dy = speed * Math.sin(angle);
+                        this.rotationAngle = Math.random() * 2 * Math.PI;
+                        nextY = Math.max(this.radius, Math.min(height - this.radius - bottomOffset, nextY));
+                    }
+
+                    this.x = nextX;
+                    this.y = nextY;
+
+                    if (!this.isIon) {
+                        this.ionizationTimer += 1 / 60;
+                        let shouldIonize = false;
+                        let ionizationDelay = 2;
+                        if (sim.compound === 'NaOH') {
+                            ionizationDelay = 4;
+                        }
+                        if (this.ionizationTimer >= ionizationDelay) {
+                            if (compound.strength === 'strong') {
+                                shouldIonize = true;
+                            } else {
+                                if (compound.ionizedCount < compound.maxIonized) {
+                                    shouldIonize = true;
+                                    compound.ionizedCount++;
+                                }
+                            }
+                            if (shouldIonize) {
+                                if (compound.type === 'acid') {
+                                    let nearestWater = null;
+                                    let minDist = Infinity;
+                                    for (let water of sim.waterMolecules) {
+                                        if (!water.isHydronium) {
+                                            const dist = Math.sqrt((this.x - water.x) ** 2 + (this.y - water.y) ** 2);
+                                            if (dist < minDist) {
+                                                minDist = dist;
+                                                nearestWater = water;
+                                            }
+                                        }
+                                    }
+                                    if (nearestWater) {
+                                        nearestWater.isHydronium = true;
+                                        const pos = getRandomPosition(this.radius);
+                                        return { ionize: true, newMolecules: [new Molecule(compound.ions[1].label, compound.ions[1].color, pos.x, pos.y, true)] };
+                                    } else {
+                                        return { ionize: false };
+                                    }
+                                } else {
+                                    const pos1 = getRandomPosition(this.radius);
+                                    const pos2 = getRandomPosition(this.radius);
+                                    return { ionize: true, newMolecules: [
+                                        new Molecule(compound.ions[0].label, compound.ions[0].color, pos1.x, pos1.y, true),
+                                        new HydroxideIon(pos2.x, pos2.y)
+                                    ]};
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotationAngle);
+
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = (this.label === 'F⁻' || this.label === 'Na⁺') ? '#ffffff' : '#000';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, 0, 0);
+
+                ctx.restore();
+            }
+        }
+
+        function initWater(sim) {
+            sim.waterMolecules = [];
+            for (let i = 0; i < 30; i++) {
+                const pos = getRandomPosition(8);
+                sim.waterMolecules.push(new WaterMolecule(pos.x, pos.y));
+            }
+            console.log(`initWater (${sim.compound}): ${sim.waterMolecules.length} water molecules`);
+        }
+
+        function initMolecules(sim) {
+            sim.molecules = [];
+            const compound = compounds[sim.compound];
+            for (let i = 0; i < 8; i++) {
+                const x = width / 2 + (Math.random() - 0.5) * 50;
+                const y = 10 - i * 15;
+                if (sim.compound === 'NH3') {
+                    sim.molecules.push(new AmmoniaMolecule(x, y));
+                } else if (sim.compound === 'HF') {
+                    sim.molecules.push(new HFMolecule(x, y));
+                } else {
+                    sim.molecules.push(new Molecule(sim.compound, compound.color, x, y));
+                }
+            }
+            compound.ionizedCount = 0;
+            console.log(`initMolecules (${sim.compound}): ${sim.molecules.length} molecules`);
+        }
+
+        function countSpecies(sim) {
+            const counts = {
+                H2O: 0,
+                H3O: 0,
+                Cl: 0,
+                F: 0,
+                Na: 0,
+                OH: 0,
+                NH3: 0,
+                NH4: 0,
+                HCl: 0,
+                HF: 0,
+                NaOH: 0
+            };
+
+            sim.waterMolecules.forEach(water => {
+                if (water.isHydronium) {
+                    counts.H3O++;
+                } else {
+                    counts.H2O++;
+                }
+            });
+
+            sim.molecules.forEach(molecule => {
+                if (molecule instanceof HydroxideIon) {
+                    counts.OH++;
+                } else if (molecule instanceof AmmoniumIon) {
+                    counts.NH4++;
+                } else if (molecule instanceof AmmoniaMolecule) {
+                    counts.NH3++;
+                } else if (molecule instanceof HFMolecule) {
+                    counts.HF++;
+                } else {
+                    if (molecule.label === 'Cl⁻') counts.Cl++;
+                    if (molecule.label === 'F⁻') counts.F++;
+                    if (molecule.label === 'Na⁺') counts.Na++;
+                    if (molecule.label === 'HCl') counts.HCl++;
+                    if (molecule.label === 'NaOH') counts.NaOH++;
+                }
+            });
+
+            return counts;
+        }
+
+        function drawLegendSpecies(ctx, label) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2);
+
+            if (label === 'H₂O') {
+                const radiusO = 8;
+                const radiusH = 4;
+                const colorO = '#ff0000';
+                const colorH = '#00ffff';
+                const angle = 105 * Math.PI / 180;
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                const h1x = (radiusO + radiusH) * Math.cos(angle / 2);
+                const h1y = (radiusO + radiusH) * Math.sin(angle / 2);
+                const h2x = (radiusO + radiusH) * Math.cos(-angle / 2);
+                const h2y = (radiusO + radiusH) * Math.sin(-angle / 2);
+
+                ctx.beginPath();
+                ctx.arc(h1x, h1y, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.beginPath();
+                ctx.arc(h2x, h2y, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('H₂O', 0, 0);
+            } else if (label === 'H₃O⁺') {
+                const radiusO = 8;
+                const radiusH = 4;
+                const colorO = '#ff0000';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                const angleStep = (2 * Math.PI) / 3;
+                for (let i = 0; i < 3; i++) {
+                    const angle = i * angleStep;
+                    const hx = (radiusO + radiusH) * Math.cos(angle);
+                    const hy = (radiusO + radiusH) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#000';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', 0, 0);
+            } else if (label === 'Cl⁻') {
+                const radius = 7;
+                const color = '#00ff00';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#000';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Cl⁻', 0, 0);
+            } else if (label === 'F⁻') {
+                const radius = 7;
+                const color = '#0000ff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('F⁻', 0, 0);
+            } else if (label === 'Na⁺') {
+                const radius = 7;
+                const color = '#800080';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('Na⁺', 0, 0);
+            } else if (label === 'OH⁻') {
+                const radiusO = 8;
+                const radiusH = 4;
+                const colorO = '#ff0000';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = (radiusO + radiusH) * Math.cos(0);
+                const hy = (radiusO + radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('OH⁻', 0, 0);
+            } else if (label === 'NH₃') {
+                const radiusN = 8;
+                const radiusH = 4;
+                const colorN = '#8b4513';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusN, 0, Math.PI * 2);
+                ctx.fillStyle = colorN;
+                ctx.fill();
+                ctx.closePath();
+
+                const angleStep = (2 * Math.PI) / 3;
+                for (let i = 0; i < 3; i++) {
+                    const angle = i * angleStep;
+                    const hx = (radiusN + radiusH) * Math.cos(angle);
+                    const hy = (radiusN + radiusH) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('NH₃', 0, 0);
+            } else if (label === 'NH₄⁺') {
+                const radiusN = 8;
+                const radiusH = 4;
+                const colorN = '#8b4513';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusN, 0, Math.PI * 2);
+                ctx.fillStyle = colorN;
+                ctx.fill();
+                ctx.closePath();
+
+                const angleStep = (2 * Math.PI) / 4;
+                for (let i = 0; i < 4; i++) {
+                    const angle = i * angleStep + Math.PI / 4;
+                    const hx = (radiusN + radiusH) * Math.cos(angle);
+                    const hy = (radiusN + radiusH) * Math.sin(angle);
+                    ctx.beginPath();
+                    ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#000';
+                ctx.font = '8px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', 0, 0);
+            } else if (label === 'HCl') {
+                const radiusCl = 10;
+                const radiusH = 4;
+                const colorCl = '#00ff00';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusCl, 0, Math.PI * 2);
+                ctx.fillStyle = colorCl;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = (radiusCl + radiusH) * Math.cos(0);
+                const hy = (radiusCl + radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#000';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('HCl', 0, 0);
+            } else if (label === 'HF') {
+                const radiusF = 8;
+                const radiusH = 4;
+                const colorF = '#0000ff';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(0, 0, radiusF, 0, Math.PI * 2);
+                ctx.fillStyle = colorF;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = (radiusF + radiusH) * Math.cos(0);
+                const hy = (radiusF + radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('HF', 0, 0);
+            } else if (label === 'NaOH') {
+                const radiusNa = 10;
+                const radiusO = 8;
+                const radiusH = 4;
+                const colorNa = '#800080';
+                const colorO = '#ff0000';
+                const colorH = '#00ffff';
+
+                ctx.beginPath();
+                ctx.arc(-10, 0, radiusNa, 0, Math.PI * 2);
+                ctx.fillStyle = colorNa;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.beginPath();
+                ctx.arc(10, 0, radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                const hx = 10 + (radiusO + radiusH) * Math.cos(0);
+                const hy = (radiusO + radiusH) * Math.sin(0);
+                ctx.beginPath();
+                ctx.arc(hx, hy, radiusH, 0, Math.PI * 2);
+                ctx.fillStyle = colorH;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('NaOH', 0, 0);
+            }
+
+            ctx.translate(-ctx.canvas.width / 2, -ctx.canvas.height / 2);
+        }
+
+        function updateLegend(sim, legendDiv) {
+            const counts = countSpecies(sim);
+            let legendItems = [];
+
+            if (sim.compound === 'HCl') {
+                legendItems = [
+                    { label: 'H₂O', count: counts.H2O },
+                    { label: 'H₃O⁺', count: counts.H3O },
+                    { label: 'Cl⁻', count: counts.Cl },
+                    { label: 'HCl', count: counts.HCl }
+                ];
+            } else if (sim.compound === 'HF') {
+                legendItems = [
+                    { label: 'H₂O', count: counts.H2O },
+                    { label: 'H₃O⁺', count: counts.H3O },
+                    { label: 'F⁻', count: counts.F },
+                    { label: 'HF', count: counts.HF }
+                ];
+            } else if (sim.compound === 'NaOH') {
+                legendItems = [
+                    { label: 'H₂O', count: counts.H2O },
+                    { label: 'Na⁺', count: counts.Na },
+                    { label: 'OH⁻', count: counts.OH },
+                    { label: 'NaOH', count: counts.NaOH }
+                ];
+            } else if (sim.compound === 'NH3') {
+                legendItems = [
+                    { label: 'H₂O', count: counts.H2O },
+                    { label: 'NH₃', count: counts.NH3 },
+                    { label: 'NH₄⁺', count: counts.NH4 },
+                    { label: 'OH⁻', count: counts.OH }
+                ];
+            }
+
+            legendDiv.innerHTML = '';
+            legendItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'legend-item_ab';
+                const canvas = document.createElement('canvas');
+                canvas.className = 'legend-canvas_ab';
+                canvas.width = 30;
+                canvas.height = 30;
+                const ctx = canvas.getContext('2d');
+                drawLegendSpecies(ctx, item.label);
+                const countDiv = document.createElement('div');
+                countDiv.className = 'legend-count_ab';
+                countDiv.textContent = `${item.label}: ${item.count}`;
+                itemDiv.appendChild(canvas);
+                itemDiv.appendChild(countDiv);
+                legendDiv.appendChild(itemDiv);
+            });
+        }
+
+        function animateSim(sim, ctx, legendDiv) {
+            if (!simulationRunning) return;
+
+            if (!ctx) {
+                console.error(`Canvas context for ${sim.compound} is null`);
+                return;
+            }
+
+            ctx.fillStyle = '#d0efff';
+            ctx.fillRect(0, 0, width, height);
+
+            for (let i = sim.waterMolecules.length - 1; i >= 0; i--) {
+                sim.waterMolecules[i].update();
+            }
+
+            const compound = compounds[sim.compound];
+            const toRemove = [];
+            const toAdd = [];
+
+            sim.molecules.forEach((molecule, index) => {
+                const result = molecule.update(compound, sim);
+                if (result.ionize) {
+                    toRemove.push(index);
+                    toAdd.push(...result.newMolecules);
+                }
+            });
+
+            toRemove.sort((a, b) => b - a).forEach(index => {
+                sim.molecules.splice(index, 1);
+            });
+
+            sim.molecules.push(...toAdd);
+
+            sim.waterMolecules.forEach(water => {
+                water.draw(ctx);
+            });
+
+            sim.molecules.forEach(molecule => {
+                molecule.draw(ctx);
+            });
+
+            updateLegend(sim, legendDiv);
+
+            console.log(`Animating (${sim.compound}) - Water: ${sim.waterMolecules.length}, Molecules: ${sim.molecules.length}`);
+        }
+
+        function animate() {
+            animateSim(leftSim, ctxLeft, document.getElementById('legend-left_ab'));
+            animateSim(rightSim, ctxRight, document.getElementById('legend-right_ab'));
+            requestAnimationFrame(animate);
+        }
+
+        function startSimulation() {
+            if (!ctxLeft || !ctxRight) {
+                console.error('Canvas context not initialized');
+                return;
+            }
+
+            simulationRunning = true;
+            initWater(leftSim);
+            initWater(rightSim);
+            initMolecules(leftSim);
+            initMolecules(rightSim);
+            animate();
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-button_ab').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-button_ab[onclick="switchTab('${tab}')"]`).classList.add('active');
+
+            if (tab === 'acid') {
+                leftSim.compound = 'HCl';
+                rightSim.compound = 'HF';
+                document.getElementById('compound-left_ab').textContent = 'HCl (Asam Kuat)';
+                document.getElementById('compound-right_ab').textContent = 'HF (Asam Lemah)';
+            } else {
+                leftSim.compound = 'NaOH';
+                rightSim.compound = 'NH3';
+                document.getElementById('compound-left_ab').textContent = 'NaOH (Basa Kuat)';
+                document.getElementById('compound-right_ab').textContent = 'NH₃ (Basa Lemah)';
+            }
+
+            simulationRunning = false;
+            leftSim.molecules = [];
+            rightSim.molecules = [];
+            if (ctxLeft) ctxLeft.fillStyle = '#d0efff'; ctxLeft.fillRect(0, 0, width, height);
+            if (ctxRight) ctxRight.fillStyle = '#d0efff'; ctxRight.fillRect(0, 0, width, height);
+            document.getElementById('legend-left_ab').innerHTML = '';
+            document.getElementById('legend-right_ab').innerHTML = '';
+        }
+
+        function initialize() {
+            console.log('Initializing simulation');
+            if (!canvasLeft || !ctxLeft || !canvasRight || !ctxRight) {
+                console.error('Canvas or context not initialized');
+                return;
+            }
+
+            initWater(leftSim);
+            initWater(rightSim);
+            document.getElementById('compound-left_ab').textContent = 'HCl (Asam Kuat)';
+            document.getElementById('compound-right_ab').textContent = 'HF (Asam Lemah)';
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = function() {
+            console.log('DOM fully loaded');
+            setTimeout(initialize, 100);
+        };
+    </script>
+</body>
+</html>
