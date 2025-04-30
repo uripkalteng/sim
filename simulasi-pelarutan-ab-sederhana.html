@@ -1,0 +1,495 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi Pelarutan HCl (Sederhana)</title>
+    <style>
+        #simulasi-hcl-container {
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1000;
+            width: 340px;
+        }
+        #simulasi-hcl-container h1 {
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        #simulasi-hcl-container .container_hcl {
+            width: 300px;
+            height: 400px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            background-color: #e6f7ff;
+            position: relative;
+        }
+        #simulasi-hcl-container canvas {
+            display: block !important;
+            border: 2px solid red; /* Border sementara untuk debugging */
+            width: 300px !important;
+            height: 400px !important;
+            background-color: #e6f7ff;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+        #simulasi-hcl-container .start-button_hcl {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #simulasi-hcl-container .start-button_hcl:hover {
+            background-color: #45a049;
+        }
+        #simulasi-hcl-container .species-count_hcl {
+            margin-top: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            text-align: left;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div id="simulasi-hcl-container">
+        <h1>Simulasi Pelarutan HCl (Asam Kuat)</h1>
+        <div class="container_hcl">
+            <canvas id="canvas-hcl" width="300" height="400"></canvas>
+            <div class="species-count_hcl" id="species-hcl"></div>
+        </div>
+        <button class="start-button_hcl" id="start-button_hcl">Mulai Simulasi</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas-hcl');
+        const ctx = canvas ? canvas.getContext('2d', { alpha: false }) : null;
+        const width = 300;
+        const height = 400;
+        const bottomOffset = 30;
+
+        const compound = {
+            name: 'HCl',
+            type: 'acid',
+            strength: 'strong',
+            color: '#808080',
+            ions: [{ label: 'H⁺', color: '#ff0000' }, { label: 'Cl⁻', color: '#00ff00' }],
+            ionizationRate: 1.0
+        };
+
+        let simulationRunning = false;
+        let sim = { compound: 'HCl', molecules: [], waterMolecules: [] };
+
+        function getRandomPosition(radius) {
+            const x = Math.random() * (width - 2 * radius) + radius;
+            const y = 30 + Math.random() * (height - bottomOffset - 2 * radius - 30);
+            return { x, y };
+        }
+
+        class WaterMolecule {
+            constructor(x, y, isHydronium = false) {
+                this.x = x;
+                this.y = y;
+                this.radiusO = 12;
+                this.radiusH = 6;
+                this.colorO = '#ff0000';
+                this.colorH = '#00ffff';
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = (Math.random() * 2 - 1) * 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                this.isHydronium = isHydronium;
+                this.angle = 105 * Math.PI / 180;
+            }
+
+            update() {
+                let nextX = this.x + this.dx;
+                let nextY = this.y + this.dy;
+
+                if (isNaN(nextX) || isNaN(nextY)) {
+                    console.log('NaN detected in WaterMolecule');
+                    this.dx = (Math.random() * 2 - 1) * 2;
+                    this.dy = (Math.random() * 2 - 1) * 2;
+                    this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                    this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                    nextX = this.x;
+                    nextY = this.y;
+                }
+
+                nextX = Math.max(this.radiusO, Math.min(width - this.radiusO, nextX));
+                nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+
+                if (nextX === this.radiusO || nextX === width - this.radiusO) this.dx = -this.dx;
+                if (nextY === this.radiusO || nextY === height - this.radiusO - bottomOffset) {
+                    this.dy = -this.dy;
+                    nextY = Math.max(this.radiusO, Math.min(height - this.radiusO - bottomOffset, nextY));
+                }
+
+                this.x = nextX;
+                this.y = nextY;
+            }
+
+            draw(ctx) {
+                if (!ctx) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radiusO, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorO;
+                ctx.fill();
+                ctx.closePath();
+
+                if (this.isHydronium) {
+                    const angleStep = (2 * Math.PI) / 3;
+                    for (let i = 0; i < 3; i++) {
+                        const angle = i * angleStep;
+                        const hx = this.x + (this.radiusO + this.radiusH) * Math.cos(angle);
+                        const hy = this.y + (this.radiusO + this.radiusH) * Math.sin(angle);
+                        ctx.beginPath();
+                        ctx.arc(hx, hy, this.radiusH, 0, Math.PI * 2);
+                        ctx.fillStyle = this.colorH;
+                        ctx.fill();
+                        ctx.closePath();
+                    }
+                    ctx.fillStyle = '#000';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('+', this.x, this.y);
+                } else {
+                    const h1x = this.x + (this.radiusO + this.radiusH) * Math.cos(this.angle / 2);
+                    const h1y = this.y + (this.radiusO + this.radiusH) * Math.sin(this.angle / 2);
+                    const h2x = this.x + (this.radiusO + this.radiusH) * Math.cos(-this.angle / 2);
+                    const h2y = this.y + (this.radiusO + this.radiusH) * Math.sin(-this.angle / 2);
+
+                    ctx.beginPath();
+                    ctx.arc(h1x, h1y, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+
+                    ctx.beginPath();
+                    ctx.arc(h2x, h2y, this.radiusH, 0, Math.PI * 2);
+                    ctx.fillStyle = this.colorH;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.isHydronium ? 'H₃O⁺' : 'H₂O', this.x, this.y);
+            }
+        }
+
+        class Molecule {
+            constructor(label, color, x, y, isIon = false) {
+                this.label = label;
+                this.color = color;
+                this.x = x;
+                this.y = y;
+                this.radius = isIon ? 10 : 15;
+                this.dx = (Math.random() * 2 - 1) * 2;
+                this.dy = isIon ? Math.max(0.5, Math.random() * 2) : 2;
+                this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                this.isIon = isIon;
+                this.ionizationTimer = 0;
+                this.dissolving = false;
+            }
+
+            update(compound, sim) {
+                if (!this.dissolving) {
+                    const nextY = this.y + this.dy;
+                    const bottomLimit = height - this.radius - bottomOffset;
+                    if (nextY <= bottomLimit) {
+                        this.y = nextY;
+                        if (!this.isIon) this.dy += 0.1;
+                    } else {
+                        this.y = bottomLimit;
+                        this.dy = (Math.random() * 2 - 1) * 2;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        this.dissolving = true;
+                    }
+                }
+
+                if (this.dissolving) {
+                    let nextX = this.x + this.dx;
+                    let nextY = this.y + this.dy;
+
+                    if (isNaN(nextX) || isNaN(nextY)) {
+                        console.log('NaN detected in Molecule');
+                        this.dx = (Math.random() * 2 - 1) * 2;
+                        this.dy = this.isIon ? Math.max(0.5, Math.random() * 2) : (Math.random() * 2 - 1) * 2;
+                        this.dx = Math.abs(this.dx) < 0.5 ? (this.dx >= 0 ? 0.5 : -0.5) : this.dx;
+                        this.dy = Math.abs(this.dy) < 0.5 ? (this.dy >= 0 ? 0.5 : -0.5) : this.dy;
+                        nextX = this.x;
+                        nextY = this.y;
+                    }
+
+                    nextX = Math.max(this.radius, Math.min(width - this.radius, nextX));
+                    nextY = Math.max(this.radius, Math.min(height - this.radius - bottomOffset, nextY));
+
+                    if (nextX === this.radius || nextX === width - this.radius) this.dx = -this.dx;
+                    if (nextY === this.radius || nextY === height - this.radius - bottomOffset) {
+                        this.dy = -this.dy;
+                        nextY = Math.max(this.radius, Math.min(height - this.radius - bottomOffset, nextY));
+                    }
+
+                    this.x = nextX;
+                    this.y = nextY;
+
+                    if (!this.isIon) {
+                        this.ionizationTimer += 1 / 60;
+                        let shouldIonize = false;
+                        if (this.ionizationTimer >= 2) {
+                            if (compound.strength === 'strong') {
+                                shouldIonize = true;
+                            }
+                        }
+                        if (shouldIonize) {
+                            let nearestWater = null;
+                            let minDist = Infinity;
+                            for (let water of sim.waterMolecules) {
+                                if (!water.isHydronium) {
+                                    const dist = Math.sqrt((this.x - water.x) ** 2 + (this.y - water.y) ** 2);
+                                    if (dist < minDist) {
+                                        minDist = dist;
+                                        nearestWater = water;
+                                    }
+                                }
+                            }
+                            if (nearestWater) {
+                                nearestWater.isHydronium = true;
+                                const pos = getRandomPosition(this.radius);
+                                return { ionize: true, newMolecules: [new Molecule(compound.ions[1].label, compound.ions[1].color, pos.x, pos.y, true)] };
+                            } else {
+                                return { ionize: false };
+                            }
+                        }
+                    }
+                }
+
+                return { ionize: false };
+            }
+
+            draw(ctx) {
+                if (!ctx) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+
+                ctx.fillStyle = (this.label === 'Cl⁻') ? '#ffffff' : '#000';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.label, this.x, this.y);
+            }
+        }
+
+        function initWater(sim) {
+            sim.waterMolecules = [];
+            for (let i = 0; i < 40; i++) {
+                const pos = getRandomPosition(12);
+                sim.waterMolecules.push(new WaterMolecule(pos.x, pos.y));
+            }
+            console.log(`initWater: ${sim.waterMolecules.length} water molecules`);
+        }
+
+        function initMolecules(sim) {
+            sim.molecules = [];
+            for (let i = 0; i < 10; i++) {
+                const x = width / 2 + (Math.random() - 0.5) * 50;
+                const y = 10 - i * 20;
+                sim.molecules.push(new Molecule(sim.compound, compound.color, x, y));
+            }
+            console.log(`initMolecules: ${sim.molecules.length} molecules`);
+        }
+
+        function countSpecies(sim) {
+            const counts = { H2O: 0, H3O: 0, Cl: 0, HCl: 0 };
+            sim.waterMolecules.forEach(water => {
+                if (water.isHydronium) counts.H3O++;
+                else counts.H2O++;
+            });
+            sim.molecules.forEach(molecule => {
+                if (molecule.label === 'Cl⁻') counts.Cl++;
+                if (molecule.label === 'HCl') counts.HCl++;
+            });
+            return counts;
+        }
+
+        function ensureCanvasDimensions() {
+            if (canvas.width !== width || canvas.height !== height) {
+                console.log(`Fixing canvas dimensions: ${canvas.width}x${canvas.height} -> ${width}x${height}`);
+                canvas.width = width;
+                canvas.height = height;
+            }
+        }
+
+        function checkDOMElements() {
+            const container = document.getElementById('simulasi-hcl-container');
+            const canvas = document.getElementById('canvas-hcl');
+            console.log('DOM Check - Container exists:', !!container);
+            console.log('DOM Check - Canvas exists:', !!canvas);
+        }
+
+        function animateSim() {
+            if (!simulationRunning) {
+                console.log('Simulation not running');
+                return;
+            }
+
+            if (!canvas) {
+                console.error('Canvas not found in DOM');
+                return;
+            }
+
+            if (!ctx) {
+                console.error('Canvas context is null');
+                return;
+            }
+
+            try {
+                ensureCanvasDimensions();
+                console.log(`Canvas dimensions: ${ctx.canvas.width}x${ctx.canvas.height}`);
+
+                ctx.fillStyle = '#d0efff';
+                ctx.fillRect(0, 0, width, height);
+
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(10, 10, 20, 20);
+
+                for (let i = sim.waterMolecules.length - 1; i >= 0; i--) {
+                    sim.waterMolecules[i].update();
+                }
+
+                const toRemove = [];
+                const toAdd = [];
+
+                sim.molecules.forEach((molecule, index) => {
+                    const result = molecule.update(compound, sim);
+                    if (result.ionize) {
+                        toRemove.push(index);
+                        toAdd.push(...result.newMolecules);
+                    }
+                });
+
+                toRemove.sort((a, b) => b - a).forEach(index => sim.molecules.splice(index, 1));
+                sim.molecules.push(...toAdd);
+
+                sim.waterMolecules.forEach(water => water.draw(ctx));
+                sim.molecules.forEach(molecule => molecule.draw(ctx));
+
+                const counts = countSpecies(sim);
+                const speciesText = `Jumlah Spesi:<br>H₂O: ${counts.H2O}<br>H₃O⁺: ${counts.H3O}<br>Cl⁻: ${counts.Cl}<br>HCl: ${counts.HCl}`;
+                document.getElementById('species-hcl').innerHTML = speciesText;
+
+                console.log(`Animating - Water: ${sim.waterMolecules.length}, Molecules: ${sim.molecules.length}`);
+            } catch (error) {
+                console.error('Error in animateSim:', error);
+            }
+        }
+
+        let lastFrameTime = 0;
+        const FRAME_DURATION = 1000 / 60;
+
+        function animate(timestamp) {
+            const delta = timestamp - lastFrameTime;
+            if (delta < FRAME_DURATION) {
+                requestAnimationFrame(animate);
+                return;
+            }
+            lastFrameTime = timestamp;
+
+            checkDOMElements();
+            animateSim();
+            requestAnimationFrame(animate);
+        }
+
+        function startSimulation() {
+            console.log('startSimulation called');
+            simulationRunning = true;
+            initWater(sim);
+            initMolecules(sim);
+        }
+
+        function initialize() {
+            console.log('Initializing simulation');
+
+            if (!canvas || !ctx) {
+                console.error('Canvas or context not initialized');
+                return;
+            }
+
+            console.log('Drawing green square on canvas during initialization');
+            ctx.fillStyle = '#00ff00';
+            ctx.fillRect(50, 50, 30, 30);
+
+            initWater(sim);
+
+            const startButton = document.getElementById('start-button_hcl');
+            if (startButton) {
+                startButton.addEventListener('click', startSimulation);
+            } else {
+                console.error('Start button not found');
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = function() {
+            console.log('DOM fully loaded');
+            setTimeout(initialize, 100);
+        };
+    </script>
+</body>
+</html>
