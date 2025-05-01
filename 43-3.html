@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital 4f, n=4, l=3, m=+3</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            border: 3px solid darkgreen;
+            border-radius: 5px;
+            width: 345px;
+            max-width: 100%;
+            background-color: palegreen;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: green;
+            color: yellow;
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+        }
+        .header b {
+            font-size: 1.1em;
+        }
+        .jmol-applet {
+            margin: 10px 0;
+            display: block;
+        }
+        .button-group {
+            margin: 10px 0;
+        }
+        .button-group button {
+            margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        a {
+            color: blue;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .hidden {
+            visibility: hidden;
+            position: absolute;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <b>Orbital f, 4f<sub>x(x<sup>2</sup>-3y<sup>2</sup>)</sub><br>
+            Bilangan Kuantum: <i>n</i> = 4; <i>l</i> = 3; <i>m</i> = +3</b>
+        </div>
+        <div class="hidden">
+            <script src="https://chemapps.stolaf.edu/jmol/jmol.php?model=hydrogen&inline&width=10&height=10"></script>
+        </div>
+        <div class="jmol-applet">
+            <script>
+                jmolApplet(320, 'isosurface ID orbitalfg select ({}) resolution 1.0 cutoff 0.0026 phase color red blue atomicOrbital 4 3 3 1.0; isosurface fill noMesh noDots notFrontOnly frontlit; set echo off; set echo middle; echo Urip.info; font echo 12 SansSerif Bold; color echo translucent palegreen; axes 2; axes LABELS "+X" "+Y" "+Z" "-X" "-Y" "-Z"; font axes 14 SansSerif Plain; axes scale 4; frank off; set antialiasdisplay true; select *; set fontScaling false; moveto 0.5 { 462 -868 -180 47.18} 45');
+            </script>
+        </div>
+        <a href="https://www.youtube.com/uriprukim">urip dot info @ youtube</a>
+        <div class="button-group">
+            <script>
+                jmolButton('isosurface ID konturfgxz delete; isosurface ID konturfgxy delete; isosurface ID konturfgyz delete; isosurface ID orbitalfg delete; isosurface ID rapatfg delete; set antialiasdisplay false; isosurface ID dotfg select ({}) resolution 1.0 cutoff 0.0026 phase color red blue atomicOrbital 4 3 3 1.0 points 5000 0.0 -3082;', 'Model Poin');
+                jmolButton('isosurface ID konturfgxz delete; isosurface ID konturfgxy delete; isosurface ID konturfgyz delete; isosurface ID dotfg delete; isosurface ID rapatfg delete; set antialiasdisplay true; isosurface ID orbitalfg select ({}) resolution 1.0 cutoff 0.0026 phase color red blue atomicOrbital 4 3 3 1.0; isosurface fill noMesh noDots notFrontOnly frontlit;', 'Model Poligon');
+                jmolButton('isosurface ID konturfgxz delete; isosurface ID konturfgxy delete; isosurface ID konturfgyz delete; isosurface ID dotfg delete; set antialiasdisplay false; isosurface ID rapatfg select ({}) atomicOrbital 4 3 3 1.0 points 5000 0.0 96 map atomicOrbital 4 3 3 1.0; isosurface ID rapatfg fill noMesh noDots notFrontOnly frontlit; color rapatfg roygb range -0.020366151131935958 0.020492740068494733;', 'Model Titik Rapatan');
+            </script>
+        </div>
+        <div class="button-group">
+            <script>
+                jmolButton('isosurface ID orbitalfg delete; isosurface ID dotfg delete; isosurface ID rapatfg delete; isosurface ID konturfgxz delete; isosurface ID konturfgyz delete; isosurface ID konturfgxy select ({}) plane {0 0 1 0} contour 20 resolution 3.0 atomicOrbital 4 3 3 1.0; isosurface ID konturfgxy noFill mesh noDots notFrontOnly contourlines fullylit;', 'Kontur XY');
+                jmolButton('isosurface ID orbitalfg delete; isosurface ID dotfg delete; isosurface ID rapatfg delete; isosurface ID konturfgxy delete; isosurface ID konturfgyz delete; isosurface ID konturfgxy select ({}) plane {0 1 0 0} contour 20 resolution 3.0 atomicOrbital 4 3 3 1.0; isosurface ID konturfgxz noFill mesh noDots notFrontOnly contourlines fullylit;', 'Kontur XZ');
+                jmolButton('isosurface ID orbitalfg delete; isosurface ID dotfg delete; isosurface ID rapatfg delete; isosurface ID konturfgxy delete; isosurface ID konturfgxz delete; isosurface ID konturfgxy select ({}) plane {1 0 0 0} contour 20 resolution 3.0 atomicOrbital 4 3 3 1.0; isosurface ID konturfgyz noFill mesh noDots notFrontOnly contourlines fullylit;', 'Kontur YZ');
+            </script>
+        </div>
+        <div class="button-group">
+            <script>
+                jmolCheckbox('spin on', 'spin off', 'Berputar');
+            </script>
+        </div>
+        <div class="button-group">
+            <script>
+                jmolButton('moveto 1 Left', 'Kiri(-X)');
+                jmolButton('moveto 1 Right', 'Kanan(+X)');
+                jmolButton('moveto 1 Front', 'Depan(+Z)');
+                jmolButton('moveto 1 Back', 'Belakang(-Z)');
+                jmolButton('moveto 1 Top', 'Atas(+Y)');
+                jmolButton('moveto 1 Bottom', 'Bawah(-Y)');
+            </script>
+        </div>
+    </div>
+</body>
+</html>
