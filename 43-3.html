@@ -16,7 +16,6 @@
             flex-direction: column;
             min-height: 100vh;
             margin: 0;
-            background-color: #f4f4f4;
         }
         .container {
             border: 3px solid darkgreen;
@@ -68,7 +67,7 @@
     <div class="container">
         <div class="header">
             <b>Orbital f, 4f<sub>x(x<sup>2</sup>-3y<sup>2</sup>)</sub><br>
-            Bilangan Kuantum: <i>n</i> = 4; <i>l</i> = 3; <i>m</i> = +3</b>
+            Bilangan Kuantum:<br/> <i>n</i> = 4; <i>l</i> = 3; <i>m</i> = +3</b>
         </div>
         <div class="hidden">
             <script src="https://chemapps.stolaf.edu/jmol/jmol.php?model=hydrogen&inline&width=10&height=10"></script>
@@ -101,9 +100,9 @@
         <div class="button-group">
             <script>
                 jmolButton('moveto 1 Left', 'Kiri(-X)');
-                jmolButton('moveto 1 Right', 'Kanan(+X)');
+                jmolButton('moveto 1 Right', 'Kanan(+X)');<br/>
                 jmolButton('moveto 1 Front', 'Depan(+Z)');
-                jmolButton('moveto 1 Back', 'Belakang(-Z)');
+                jmolButton('moveto 1 Back', 'Belakang(-Z)');<br/>
                 jmolButton('moveto 1 Top', 'Atas(+Y)');
                 jmolButton('moveto 1 Bottom', 'Bawah(-Y)');
             </script>
